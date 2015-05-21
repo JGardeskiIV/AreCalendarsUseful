@@ -7,23 +7,14 @@
  */
 package edu.exploration;
 
-import java.awt.BorderLayout;
-import java.awt.Color;
-import java.awt.FlowLayout;
-import java.awt.Font;
-import java.awt.GridLayout;
+import javax.swing.*;
+import javax.swing.border.BevelBorder;
+import javax.swing.border.EtchedBorder;
+import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.Calendar;
-
-import javax.swing.BorderFactory;
-import javax.swing.JButton;
-import javax.swing.JFrame;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.SwingUtilities;
-import javax.swing.border.BevelBorder;
-import javax.swing.border.EtchedBorder;
+import java.util.Enumeration;
 
 public class CalendarPanel extends JPanel {
 
@@ -73,6 +64,7 @@ public class CalendarPanel extends JPanel {
      ***************/
     private static final long serialVersionUID = 1L;
 
+    //  Padding constants
     public static final int BORDER_H_GAP = 8;
     public static final int BORDER_V_GAP = 3;
     public static final int FLOW_H_GAP = 15;
@@ -82,6 +74,7 @@ public class CalendarPanel extends JPanel {
     public static final int PANEL_PAD = 8;
     public static final int DAYS_PAD = 5;
 
+    //  Time constants
     public static final int MAX_WEEKS = 6;
     public static final int DAYS_IN_WEEK = 7;
     public static final int DAYS_DISPLAYED = MAX_WEEKS * DAYS_IN_WEEK;
@@ -99,17 +92,17 @@ public class CalendarPanel extends JPanel {
     private JPanel daysPanel;
 
     private Calendar time;
+    private int daySelected = -1;   //  Reflect the same selected day irrespective of the month.
 
-    private JButton[] dayButtons;
+    private ButtonGroup dayButtons;
 
     /******************
      *  Constructors  *
      ******************/
 
-    /**	Creates a JPanel with a BorderLayout LayoutManager, with outside padding
-     * 	to be seen within its' parent container. Also captures a time instance in
-     * 	the passed-in Calendar object, or creates one based off of the current time,
-     * 	time zone, and default locale.
+    /**	Creates a JPanel with a BorderLayout LayoutManager, with padding between it
+     *  and its' parent container. Also captures a passed-in time instance as a Calendar
+     *  object, or creates one based off of the current time, time zone, and default locale.
      *
      * 	@param aTime	-	a pre-specified time, or the current time if null is passed in.
      */
@@ -153,7 +146,7 @@ public class CalendarPanel extends JPanel {
      * 	and adds the headerPanel to the CalendarPanel.
      *
      * 	@pre	-	The headerPanel does not yet exist.
-     * 	@post	-	All headerPanel components are updated, active, and visible.
+     * 	@post	-	All headerPanel components have been created and are updated, active, and visible.
      */
     private void createHeaderPanel() {
         //	Instantiate the headerPanel with appropriate padding.
@@ -196,9 +189,9 @@ public class CalendarPanel extends JPanel {
 
     /**	Updates the calendar's month and year display in the header at the top of the panel.
      *
-     * 	@pre	-	createHeaderPanel() has already been called, meaning that the
-     * 				monthAndYear label has already been instantiated.
-     * 				Also, Calendar time represents the updated time data.
+     * 	@pre	-	createHeaderPanel() has already been called, meaning that
+     * 				monthYearLabel has already been instantiated.
+     * 				Also, Calendar time represents the updated time.
      *
      * 	@post	-	The currentMonth instance variable and monthAndYear label
      * 				hold and display updated time values.
@@ -214,7 +207,7 @@ public class CalendarPanel extends JPanel {
      * 	and adds the daysPanel to the CalendarPanel.
      *
      * 	@pre	-	The daysPanel does not yet exist.
-     * 	@post	-	All daysPanel components are updated, active, and visible.
+     * 	@post	-	All daysPanel components have been created and are updated, active, and visible.
      */
     private void createDaysPanel() {
 		/*	Instantiate the daysPanel - with appropriate padding - to have a header row
@@ -223,9 +216,7 @@ public class CalendarPanel extends JPanel {
 		 */
         daysPanel = new JPanel(new GridLayout(MAX_WEEKS + 1, DAYS_IN_WEEK, GRID_H_GAP, GRID_V_GAP));
         JLabel[] weekdayLabels = new JLabel[WEEKDAYS.length];
-
-        //  Give it some padding within the CalendarPanel
-
+        //  TODO    -   Refactor / Optimize / Confirm documentation & comments from here down.
         //	Build the day header row showing the days of the week.
         for (int i = 0; i < weekdayLabels.length; i++) {
             weekdayLabels[i] = new JLabel(WEEKDAYS[i], JLabel.CENTER);
@@ -258,15 +249,16 @@ public class CalendarPanel extends JPanel {
      * 				next months of the month and year of the Calendar time.
      */
     private void updateDaysPanel() {
-
+        //  TODO    -   Focus on cleaning this garbage up.
         //	First, grab the number of days in the current month.
-        int numDays = time.getActualMaximum(Calendar.DAY_OF_MONTH);
+        int daysInCurrentMonth = time.getActualMaximum(Calendar.DAY_OF_MONTH);
 
 		/*	Then, save the value of the current day, determine the weekday of
 		 * 	the first day of the given month, and then restore the Calendar
 		 * 	time instance variable to its' proper state.
 		 */
         int currentDay = time.get(Calendar.DAY_OF_MONTH);
+        if (daySelected == -1) { daySelected = currentDay; }
 
         time.set(Calendar.DAY_OF_MONTH, 1);
 
@@ -276,75 +268,92 @@ public class CalendarPanel extends JPanel {
         //	Restore the calendar's state.
         time.set(Calendar.DAY_OF_MONTH, currentDay);
 
-		/*	If the first day of the month is Sunday or Monday, start the
+		/*	If the first day of the month is a Sunday, start the
 		 * 	current month in the second row of the grid.
 		 */
-        if (firstDay < 2) {
-            firstDay = firstDay + 7;
+        if (firstDay == 1) {
+            firstDay += 7;
         }
 
 		/*	All days before the first day of the current month represent
 		 * 	days from the previous month.
 		 */
-        int dayIndex = 0;
         Calendar temp = (Calendar) time.clone();
         temp.add(Calendar.MONTH, -1);
-        int prevDays = temp.getActualMaximum(Calendar.DAY_OF_MONTH) - firstDay + 1;
+        int daysInPreviousMonth = temp.getActualMaximum(Calendar.DAY_OF_MONTH);
+        int dayToShow = daysInPreviousMonth - (firstDay - 2);
+
+        JToggleButton btn;
+        Enumeration<AbstractButton> days = dayButtons.getElements();
         do {
-            dayButtons[dayIndex].setText(++prevDays + "");
-            dayButtons[dayIndex].setEnabled(false);
-            dayButtons[dayIndex].setSelected(false);
-        } while ( ++dayIndex < firstDay - 1 );
+            btn = (JToggleButton) days.nextElement();
+            btn.setText(dayToShow + "");
+            btn.setEnabled(false);
+            btn.setSelected(false);
+        } while ( ++dayToShow <= daysInPreviousMonth );
 
 		/*	Update the display for all days in the current month.
-		 * 	-	j is the display counter
-		 * 	-	dayIndex holds the appropriate dayButtons[] index.
 		 */
-        int i = 1;
+        dayToShow = 1;
         do {
-            dayButtons[dayIndex].setText("" + i);
-            dayButtons[dayIndex].setEnabled(true);
-            dayButtons[dayIndex++].setSelected(false);
-        } while ( ++i <= numDays );
+            btn = (JToggleButton) days.nextElement();
+            btn.setText("" + dayToShow);
+            btn.setEnabled(true);
+            if (dayToShow == daySelected) {
+                btn.setSelected(true);
+                daySelected = dayToShow;
+            } else {
+                btn.setSelected(false);
+            }
+        } while ( ++dayToShow <= daysInCurrentMonth );
 
 		/*	All days after the end of the current month represent days from
 		 * 	the following month.
 		 */
-        int daysLeft = DAYS_DISPLAYED - numDays - firstDay;
-        i = 1;
+        int daysLeft = DAYS_DISPLAYED - daysInCurrentMonth - firstDay;
+        dayToShow = 1;
         do {
-            dayButtons[dayIndex].setText(i + "");
-            dayButtons[dayIndex].setEnabled(false);
-            dayButtons[dayIndex++].setSelected(false);
-        } while ( i++ <= daysLeft );
-
-        dayButtons[time.get(Calendar.DAY_OF_MONTH) + firstDay - 2].setSelected(true);
+            btn = (JToggleButton) days.nextElement();
+            btn.setText("" + dayToShow);
+            btn.setEnabled(false);
+            btn.setSelected(false);
+        } while ( ++dayToShow <= daysLeft );
     }
 
-    /**	Creates all of the day buttons to be used in the daysPanel:
-     * 	-	adds an action listener to each button, sets its initial state to
-     * 		disabled, and adds it to the daysPanel.
+    /** Creates all of the day toggle buttons to be used in the daysPanel, and the
+     *  ButtonGroup to ensure that only one is toggled at a given time. Also adds
+     *  an action listener to each button, sets its initial state to disabled, and
+     *  adds it to the daysPanel.
      *
-     * 	@pre	-	the dayButtons array has not been instantiated, and no buttons exist yet.
+     * 	@pre	-	the dayButtons ButtonGroup has not been instantiated, and no toggle buttons exist yet.
      *
      * 	@post	-	DAYS_DISPLAYED buttons have been created, paired with an appropriate
-     * 				action listener, disabled at start, and added to the daysPanel.
+     * 				action listener, disabled at start, and added to the dayButtons group
+     * 			    and the daysPanel.
      */
     private void createDayButtons() {
-        //	Create the array.
-        dayButtons = new JButton[DAYS_DISPLAYED];
+        //	Create the ButtonGroup.
+        dayButtons = new ButtonGroup();
         for (int i = 0; i < DAYS_DISPLAYED; i++) {
-            //	Create the button first.
-            dayButtons[i] = new JButton();
+            //	Create and disable the button.
+            JToggleButton button = new JToggleButton("", false);
+            button.setEnabled(false);
 
             //	Add the action listener here.
+            button.addActionListener(new ActionListener() {
+                public void actionPerformed(ActionEvent e) {
+                    //  Update the last selected day to allow reflection across months.
+                    daySelected = Integer.parseInt(e.getActionCommand());
 
+                    //  Sequence to data handling & other GUI displays / adjustments initiates here.
+                }
+            });
 
-            //	Buttons are initially disabled.
-            dayButtons[i].setEnabled(false);
+            //  Add it to the ButtonGroup.
+            dayButtons.add(button);
 
             //	Add each button to the daysPanel.
-            daysPanel.add(dayButtons[i]);
+            daysPanel.add(button);
         }
     }
 }
